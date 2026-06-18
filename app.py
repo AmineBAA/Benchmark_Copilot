@@ -271,7 +271,7 @@ div[data-testid="stSelectSlider"] {max-width: 260px;}
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-PAGES = ["Veille Concurrentielle", "Rapports Bank Al-Maghrib", "Sources"]
+PAGES = ["Veille Concurrentielle", "Rapports Bank Al-Maghrib", "Configuration"]
 if "page" not in st.session_state:
     st.session_state.page = PAGES[0]
 
