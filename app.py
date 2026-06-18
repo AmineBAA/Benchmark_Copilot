@@ -271,7 +271,7 @@ div[data-testid="stSelectSlider"] {max-width: 260px;}
 """
 st.markdown(CUSTOM_CSS, unsafe_allow_html=True)
 
-PAGES = ["Veille Sectorielle", "Analyse Concurrents", "Rapports Bank Al-Maghrib", "Configuration"]
+PAGES = ["Veille Concurrentielle", "Rapports Bank Al-Maghrib", "Configuration"]
 if "page" not in st.session_state:
     st.session_state.page = PAGES[0]
 
@@ -316,8 +316,6 @@ feed_title = (
 if st.session_state.page == "Rapports Bank Al-Maghrib":
     feed_articles = [a for a in period_articles if a["category"] == "reglementaire_bam"]
     feed_title = "Communications Bank Al-Maghrib"
-elif st.session_state.page == "Analyse Concurrents":
-    feed_articles = [a for a in period_articles if a["bank"] != "Secteur"]
 else:
     feed_articles = period_articles
 
