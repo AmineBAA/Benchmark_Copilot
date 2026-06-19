@@ -49,6 +49,8 @@ SOURCES = [
      "type": "html", "bank": "BCP", "selector": "a"},
     {"name": "Bank Of Africa", "url": "https://www.bankofafrica.ma/en/actualites",
      "type": "html", "bank": "Bank Of Africa", "selector": "a"},
+   {"name": "Le Matin", "url": "https://lematin.ma/",
+     "type": "html", "bank": "Le Matin", "selector": "a"},
 ]
 # NB : les URLs des newsrooms de chaque banque ont été trouvées par recherche
 # web et sont à vérifier/ajuster -- la structure de ces sites change souvent.
