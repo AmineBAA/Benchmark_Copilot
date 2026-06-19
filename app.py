@@ -33,10 +33,10 @@ from bs4 import BeautifulSoup
 # --------------------------------------------------------------------------
 
 CACHE_TTL_SECONDS = 4 * 3600  # rafraîchissement automatique toutes les 4h
-APP_VERSION = "2026-06-19-v2"  # change à chaque mise à jour, visible dans le diagnostic
+APP_VERSION = "2026-06-19-v3"  # change à chaque mise à jour, visible dans le diagnostic
 
 SOURCES = [
-    {"name": "Bank Al-Maghrib (BAM)", "url": "https://www.bkam.ma/",
+    {"name": "Bank Al-Maghrib (BAM)", "url": "https://www.bkam.ma/Communiques",
      "type": "html", "bank": None, "selector": "a"},
     {"name": "L'Economiste", "url": "https://www.leconomiste.com/rss-leconomiste",
      "type": "rss", "bank": None},
@@ -100,7 +100,9 @@ HEADERS = {
         "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
         "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
     "Accept-Language": "fr-FR,fr;q=0.9,en;q=0.8",
+    "Connection": "keep-alive",
 }
 
 # --------------------------------------------------------------------------
@@ -111,7 +113,9 @@ def scrape_rss(source):
     articles = []
     error = None
     try:
-        feed = feedparser.parse(source["url"])
+        resp = requests.get(source["url"], headers=HEADERS, timeout=15)
+        resp.raise_for_status()
+        feed = feedparser.parse(resp.content)
         if getattr(feed, "bozo", False) and not feed.entries:
             error = str(getattr(feed, "bozo_exception", "flux RSS illisible"))
         for entry in feed.entries:
@@ -352,11 +356,11 @@ with st.expander("🔧 Diagnostic du scraping (à ouvrir si la liste est vide)")
     st.caption(f"Version du code en cours d'exécution : `{APP_VERSION}`")
     st.caption(
         "Si 'Articles bruts trouvés' est à 0, le site bloque le scraping ou a changé de "
-        "structure. Si 'Articles bruts' > 0 mais 'Retenus après filtre' = 0, c'est le "
-        "filtre par mots-clés qui est trop strict pour ce site. Si tu vois encore des "
-        "offres d'emploi dans la liste après une mise à jour du code, clique sur "
-        "'Forcer une nouvelle actualisation' ci-dessous ou redémarre l'app depuis "
-        "Streamlit Cloud (Manage app > Reboot)."
+        "structure. Une erreur '403 Forbidden' signifie que le site a une protection "
+        "anti-robot (souvent Cloudflare) qui bloque les requêtes automatisées -- ce n'est "
+        "pas toujours réparable côté code, en particulier depuis l'IP partagée de "
+        "Streamlit Cloud. Si 'Articles bruts' > 0 mais 'Retenus après filtre' = 0, c'est "
+        "le filtre par mots-clés qui est trop strict pour ce site."
     )
     for diag in diagnostics:
         status = f"⚠️ {diag['error']}" if diag["error"] else "✅ OK"
