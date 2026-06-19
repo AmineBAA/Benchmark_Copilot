@@ -69,7 +69,7 @@ KEYWORDS_REGLEMENTAIRE = [
     "taux directeur", "instruction n°", "réglementation bancaire",
     "loi bancaire", "politique monétaire", "supervision bancaire",
     "réserve obligatoire", "blanchiment", "fonds propres",
-    "bâle iii", "stress test", "directive bam",
+    "bâle iii", "stress test", "directive bam","offre","pack","carte bancaire","banque à distance",
 ]
 
 BANK_KEYWORDS = {
