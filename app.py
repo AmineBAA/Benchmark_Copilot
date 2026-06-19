@@ -51,6 +51,8 @@ SOURCES = [
      "type": "html", "bank": "Bank Of Africa", "selector": "a"},
    {"name": "Le Matin", "url": "https://lematin.ma/",
      "type": "html", "bank": "Le Matin", "selector": "a"},
+   {"name": "Le360", "url": "https://fr.le360.ma/",
+     "type": "html", "bank": "Le360", "selector": "a"},
 ]
 # NB : les URLs des newsrooms de chaque banque ont été trouvées par recherche
 # web et sont à vérifier/ajuster -- la structure de ces sites change souvent.
@@ -69,7 +71,7 @@ KEYWORDS_REGLEMENTAIRE = [
     "taux directeur", "instruction n°", "réglementation bancaire",
     "loi bancaire", "politique monétaire", "supervision bancaire",
     "réserve obligatoire", "blanchiment", "fonds propres",
-    "bâle iii", "stress test", "directive bam","offre","pack","carte bancaire","banque à distance",
+    "bâle iii", "stress test", "directive bam","offre","pack","carte bancaire","banque à distance", "cih bank", "cfg bank","cdm",
 ]
 
 BANK_KEYWORDS = {
