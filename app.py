@@ -290,27 +290,19 @@ for page_name in PAGES:
     if st.sidebar.button(page_name, key=f"nav_{page_name}"):
         st.session_state.page = page_name
 
-# --- En-tête + curseur Jour/Semaine ---
-col_title, col_filter = st.columns([3, 1])
-with col_title:
-    st.markdown("## Veille Concurrentielle — Secteur Bancaire Marocain")
-    st.markdown(
-        "<p style='color:var(--text-muted);font-size:14px;'>Suivi des innovations, "
-        "lancements et mouvements stratégiques.</p>", unsafe_allow_html=True,
-    )
-with col_filter:
-    period_label = st.select_slider(
-        "Période", options=["Par jour", "Par semaine"], value="Par jour", label_visibility="collapsed",
-    )
-period = "day" if period_label == "Par jour" else "week"
+# --- En-tête ---
+st.markdown("## Veille Concurrentielle — Secteur Bancaire Marocain")
+st.markdown(
+    "<p style='color:var(--text-muted);font-size:14px;'>Suivi des innovations, "
+    "lancements et mouvements stratégiques — synthèse des 7 derniers jours.</p>",
+    unsafe_allow_html=True,
+)
+period = "week"
 
 articles = get_articles()
 period_articles = filter_by_period(articles, period)
 
-feed_title = (
-    "Principaux Titres (Dernières 24h)" if period == "day"
-    else "Synthèse de la Semaine (Derniers 7 jours)"
-)
+feed_title = "Synthèse de la Semaine (Derniers 7 jours)"
 
 # --- Sélection des articles selon la page active ---
 if st.session_state.page == "Rapports Bank Al-Maghrib":
