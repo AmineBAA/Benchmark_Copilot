@@ -63,7 +63,7 @@ KEYWORDS_PRODUIT = [
     "banque en ligne", "mobile banking", "paiement mobile", "découvert",
     "épargne", "placement", "tpe", "pme", "hypothécaire", "immobilier",
     "carte visa", "carte mastercard", "virement", "fintech", "néobanque",
-    "souscription", "offre",
+    "souscription", "offre","virement instantané","virement bancaire",
 ]
 
 KEYWORDS_REGLEMENTAIRE = [
