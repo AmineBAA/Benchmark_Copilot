@@ -1,20 +1,13 @@
 """
 app.py — Veille concurrentielle bancaire (Saham Bank)
 
-Fichier UNIQUE : scraping, filtrage et interface sont tout dans ce fichier,
-volontairement sans appel à une API IA externe — uniquement un filtre par
-règles (mots-clés + détection de banque).
+Fichier UNIQUE : scraping, filtrage et interface sont tout dans ce fichier.
+Sans appel à une API IA — uniquement un filtre par règles (mots-clés métier).
 
-Fonctionnement :
-- Au chargement de la page, on scrape les sources définies dans SOURCES
-  (mis en cache CACHE_TTL_SECONDS pour ne pas re-scraper à chaque clic).
-- Un filtre par mots-clés garde uniquement les articles "offre/produit
-  bancaire" ou "réglementaire Bank Al-Maghrib", et détecte la banque
-  concernée par mots-clés.
-- L'interface reproduit la maquette fournie (thème vert foncé / orange,
-  sidebar, curseur Jour/Semaine, cartes d'actu, panneau de tendances).
-
-Pour ajouter une source : ajoute un bloc dans la liste SOURCES ci-dessous.
+PRINCIPE CLÉ : on ne scrape pas les homepages génériques (qui contiennent les
+menus, footers, rubriques navigation...) mais les SECTIONS D'ARTICLES ciblées
+de chaque site. Le sélecteur CSS cible les balises de titre (h3, h4, h5, etc.)
+plutôt que tous les liens <a>, ce qui élimine 90 % du bruit.
 """
 
 import os
@@ -29,70 +22,140 @@ import streamlit as st
 from bs4 import BeautifulSoup
 
 # --------------------------------------------------------------------------
-# Configuration -- à adapter librement
+# Configuration
 # --------------------------------------------------------------------------
 
-CACHE_TTL_SECONDS = 4 * 3600  # rafraîchissement automatique toutes les 4h
-APP_VERSION = "2026-06-19-v3"  # change à chaque mise à jour, visible dans le diagnostic
+CACHE_TTL_SECONDS = 4 * 3600
+APP_VERSION = "2026-06-19-v4"
 
 SOURCES = [
-    {"name": "Bank Al-Maghrib (BAM)", "url": "https://www.bkam.ma/Communiques",
-     "type": "html", "bank": None, "selector": "a"},
-    {"name": "L'Economiste", "url": "https://www.leconomiste.com/rss-leconomiste",
-     "type": "rss", "bank": None},
-    {"name": "BoursNews", "url": "https://boursenews.ma/",
-     "type": "html", "bank": None, "selector": "a"},
-    {"name": "Attijariwafa bank", "url": "https://www.attijariwafabank.com/fr/espace-media/communiques-de-presse",
-     "type": "html", "bank": "Attijariwafa", "selector": "a"},
-    {"name": "CIH Bank", "url": "https://www.cihbank.ma/actualites",
-     "type": "html", "bank": "CIH Bank", "selector": "a"},
-    {"name": "Groupe BCP", "url": "https://www.groupebcp.com/fr/espace-communication/communiqu%C3%A9s-de-presse",
-     "type": "html", "bank": "BCP", "selector": "a"},
-    {"name": "Bank Of Africa", "url": "https://www.bankofafrica.ma/en/actualites",
-     "type": "html", "bank": "Bank Of Africa", "selector": "a"},
-   {"name": "Le Matin", "url": "https://lematin.ma/",
-     "type": "html", "bank": None, "selector": "a"},
-   {"name": "Le360", "url": "https://fr.le360.ma/",
-     "type": "html", "bank": None, "selector": "a"},
-]
-# NB : les URLs des newsrooms de chaque banque ont été trouvées par recherche
-# web et sont à vérifier/ajuster -- la structure de ces sites change souvent.
+    # --- Régulateur ---
+    {"name": "Bank Al-Maghrib (BAM)",
+     "url": "https://www.bkam.ma/Communiques",
+     "type": "html", "bank": "Bank Al-Maghrib",
+     "selector": "h3 a, h4 a, .field-content a, td a"},
 
+    # --- Presse financière marocaine ---
+    # BoursNews : section Actualités (pas la homepage) + section Décryptages
+    {"name": "BoursNews – Actualités",
+     "url": "https://boursenews.ma/articles/actualite",
+     "type": "html", "bank": None,
+     "selector": "h3 a, h4 a, h5 a"},
+    {"name": "BoursNews – Décryptages",
+     "url": "https://boursenews.ma/articles/decryptage",
+     "type": "html", "bank": None,
+     "selector": "h3 a, h4 a, h5 a"},
+    {"name": "BoursNews – Venture Capital",
+     "url": "https://boursenews.ma/articles/venture-capital",
+     "type": "html", "bank": None,
+     "selector": "h3 a, h4 a, h5 a"},
+
+    # L'Economiste : RSS officiel
+    {"name": "L'Economiste",
+     "url": "https://www.leconomiste.com/rss-leconomiste",
+     "type": "rss", "bank": None},
+
+    # Finance News Hebdo (partenaire BoursNews, actualités bancaires)
+    {"name": "Finance News Hebdo",
+     "url": "https://fnh.ma/",
+     "type": "html", "bank": None,
+     "selector": "h2 a, h3 a, h4 a"},
+
+    # Médias24 : section Banques directement
+    {"name": "Médias24 – Banques",
+     "url": "https://medias24.com/economie/banques/",
+     "type": "html", "bank": None,
+     "selector": "h2 a, h3 a, h4 a, article a"},
+
+    # --- Sites banques (certains peuvent renvoyer 403 selon l'hébergeur) ---
+    {"name": "Attijariwafa bank",
+     "url": "https://www.attijariwafabank.com/fr/espace-media/communiques-de-presse",
+     "type": "html", "bank": "Attijariwafa",
+     "selector": "h2 a, h3 a, h4 a, .title a"},
+    {"name": "CIH Bank",
+     "url": "https://www.cihbank.ma/actualites",
+     "type": "html", "bank": "CIH Bank",
+     "selector": "h2 a, h3 a, h4 a, article a"},
+    {"name": "Groupe BCP",
+     "url": "https://www.groupebcp.com/fr/espace-communication/communiqu%C3%A9s-de-presse",
+     "type": "html", "bank": "BCP",
+     "selector": "h2 a, h3 a, h4 a"},
+    {"name": "Bank Of Africa",
+     "url": "https://www.bankofafrica.ma/fr/presse/communiques",
+     "type": "html", "bank": "Bank Of Africa",
+     "selector": "h2 a, h3 a, h4 a, .news-title a"},
+]
+
+# --------------------------------------------------------------------------
+# Mots-clés MÉTIER — volontairement précis (pas trop larges)
+# --------------------------------------------------------------------------
+
+# Signaux forts d'une actualité concurrentielle bancaire :
+# lancement de produit, partenariat, accord, nouvelle offre, innovation...
 KEYWORDS_PRODUIT = [
-    "crédit", "prêt", "taux", "carte bancaire", "compte épargne",
-    "compte courant", "assurance", "leasing", "financement",
-    "banque en ligne", "mobile banking", "paiement mobile", "découvert",
-    "épargne", "placement", "tpe", "pme", "hypothécaire", "immobilier",
-    "carte visa", "carte mastercard", "virement", "fintech", "néobanque",
-    "souscription", "offre","virement instantané","virement bancaire",
+    # Produits et offres
+    "nouvelle offre", "lancement", "lance ", "lancé", "déploie", "déploiement",
+    "partenariat", "accord", "convention", "signature", "contrat",
+    "carte bancaire", "carte visa", "carte mastercard", "carte prépayée",
+    "crédit immobilier", "crédit conso", "crédit auto", "micro-crédit",
+    "prêt immobilier", "prêt personnel",
+    "compte épargne", "compte courant", "pack bancaire", "pack jeune",
+    "mobile banking", "banque mobile", "application mobile", "app bancaire",
+    "paiement mobile", "paiement digital", "paiement instantané",
+    "fintech", "néobanque", "open banking", "wallet",
+    "inclusion financière", "bancarisation",
+    "leasing", "factoring", "affacturage",
+    "assurance bancaire", "bancassurance",
+    "taux préférentiel", "taux d'intérêt", "taux directeur",
+    "financement vert", "finance verte", "esg", "green bond",
+    "digital banking", "transformation digitale",
+    "tpe", "pme", "très petites entreprises", "petites et moyennes",
+    "wafacash", "wafasalaf",
+    "augmentation de capital", "émission d'actions", "introduction en bourse",
 ]
 
 KEYWORDS_REGLEMENTAIRE = [
-    "bank al-maghrib", "bank al maghrib", "bam", "circulaire",
-    "taux directeur", "instruction n°", "réglementation bancaire",
-    "loi bancaire", "politique monétaire", "supervision bancaire",
-    "réserve obligatoire", "blanchiment", "fonds propres",
-    "bâle iii", "stress test", "directive bam",
+    "bank al-maghrib", "bank al maghrib",
+    "circulaire bam", "instruction bam", "directive bam",
+    "wali de bank al-maghrib", "wali bank",
+    "politique monétaire", "taux directeur bam",
+    "réglementation bancaire", "loi bancaire",
+    "supervision bancaire", "contrôle bancaire",
+    "réserve obligatoire",
+    "lutte contre le blanchiment", "lcb-ft",
+    "fonds propres réglementaires", "bâle iii", "stress test",
+    "ammc", "office des changes",
 ]
 
-# Tout article contenant un de ces mots est écarté d'office, même s'il
-# matche par ailleurs un mot-clé "produit" ou "réglementaire" (ex: une offre
-# d'emploi dans une banque mentionne souvent "offre", "carte bancaire", etc.
-# sans être une actualité concurrentielle).
+# Mots-clés de BRUIT à exclure en priorité — articles sans valeur pour la veille
 KEYWORDS_EXCLUSION = [
-    "offre d'emploi", "offre d emploi", "recrut", "recrutement",
-    "carrière", "carrières", "carriere", "stage", "stagiaire",
-    "candidature", "cv", "poste à pourvoir", "rejoignez-nous",
-    "rejoignez nous", "nous recrutons", "job ", "emploi",
+    # Offres d'emploi et RH
+    "offre d'emploi", "offres d'emploi", "offre d emploi", "offres d emploi",
+    "recrut", "recrutement", "carrière", "carrières", "stage", "stagiaire",
+    "candidature", "nous recrutons", "rejoignez", "poste à pourvoir",
+    # Bourse / marché — pas de la veille produit bancaire
+    "feuille de marché", "portefeuille trading", "analyse technique",
+    "cours de bourse", "clôture de la bourse", "ouverture de la bourse",
+    "masi ", "madex ", "ago ", "assemblée générale ordinaire",
+    "dividende", "résultats annuels", "bénéfice net", "chiffre d'affaires",
+    # Actualité internationale générale
+    "israël", "ukraine", "russie", "etats-unis", "usa", "fed ", "bce ",
+    "cessez-le-feu", "conflit", "guerre",
+    # Sport / divers
+    "football", "coupe du monde", "can ", "équipe nationale",
 ]
 
 BANK_KEYWORDS = {
-    "BCP": ["bcp", "banque centrale populaire", "banque populaire", "chaabi"],
+    "Attijariwafa": ["attijariwafa", "attijari wafa", "wafabank", "wafasalaf", "wafacash"],
+    "BCP": ["bcp", "banque centrale populaire", "banque populaire", "crédit populaire", "chaabi"],
     "CIH Bank": ["cih bank", "cih "],
-    "Attijariwafa": ["attijariwafa", "attijari wafa", "wafabank"],
-    "Bank Of Africa": ["bank of africa", "bmce"],
+    "Bank Of Africa": ["bank of africa", "bmce", "boa "],
     "CFG Bank": ["cfg bank"],
-    "Crédit du Maroc": ["crédit du maroc", "credit du maroc", "cdm"],
+    "Crédit du Maroc": ["crédit du maroc", "credit du maroc", " cdm "],
+    "Société Générale Maroc": ["société générale maroc", "sgma", "sg maroc"],
+    "BMCI": ["bmci"],
+    "Al Barid Bank": ["al barid bank", "barid bank"],
+    "Bank Al-Maghrib": ["bank al-maghrib", "bank al maghrib", "bam"],
 }
 
 HEADERS = {
