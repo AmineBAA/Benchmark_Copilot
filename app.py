@@ -2,7 +2,7 @@
 app.py — Veille concurrentielle bancaire (Saham Bank)
 
 ARCHITECTURE DU FILTRAGE (3 couches) :
-  1. Pré-filtre par mots-clés    → élimine emploi, bourse, actu internationale (gratuit)
+  1. Pré-filtre par mots-clés    → élimine emploi, bourse, actu internationale (grfatuit)
   2. Filtre NLP (HuggingFace API) → score de similarité sémantique avec des exemples
                                      pertinents définis par le métier
   3. Filtre de secours (mots-clés banques) → si pas de token HF, filtre basique
@@ -25,6 +25,9 @@ import requests
 import feedparser
 import streamlit as st
 from bs4 import BeautifulSoup
+
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
 
 # --------------------------------------------------------------------------
 # Configuration
@@ -176,6 +179,58 @@ HEADERS = {
     "Connection": "keep-alive",
 }
 
+CATEGORY_KEYWORDS = {
+
+    "pricing": [
+        "tarif",
+        "commission",
+        "frais",
+        "gratuit",
+        "cashback",
+        "pack"
+    ],
+
+    "digital": [
+        "application mobile",
+        "mobile banking",
+        "open banking",
+        "wallet",
+        "whatsapp"
+    ],
+
+    "paiement": [
+        "paiement",
+        "visa",
+        "mastercard",
+        "virement",
+        "instant payment"
+    ],
+
+    "credit": [
+        "crédit",
+        "financement",
+        "leasing"
+    ],
+
+    "ia": [
+        "intelligence artificielle",
+        "chatbot",
+        "copilot",
+        "machine learning"
+    ],
+
+    "fintech": [
+        "fintech",
+        "startup",
+        "partenariat"
+    ],
+
+    "reglementaire": [
+        "bank al-maghrib",
+        "circulaire",
+        "office des changes"
+    ]
+}
 # --------------------------------------------------------------------------
 # Couche NLP — HuggingFace Inference API
 # --------------------------------------------------------------------------
@@ -225,7 +280,29 @@ def nlp_score(title: str, summary: str, golden_embs: list, token: str) -> float:
     article_emb = embs[0]
     return max(_cosine(article_emb, g) for g in golden_embs)
 
+def classify_article(article):
 
+    text = (
+        article["title"]
+        + " "
+        + article.get("content","")
+    ).lower()
+
+    best_category = None
+    best_score = 0
+
+    for category, words in CATEGORY_KEYWORDS.items():
+
+        score = sum(
+            1 for word in words
+            if word in text
+        )
+
+        if score > best_score:
+            best_score = score
+            best_category = category
+
+    return best_category
 # --------------------------------------------------------------------------
 # Scraping
 # --------------------------------------------------------------------------
@@ -272,6 +349,30 @@ def scrape_rss(source: dict) -> tuple[list, str | None]:
         error = str(exc)
     return articles, error
 
+def extract_article_content(url):
+    try:
+        r = requests.get(
+            url,
+            headers=HEADERS,
+            timeout=15
+        )
+
+        soup = BeautifulSoup(
+            r.text,
+            "html.parser"
+        )
+
+        paragraphs = soup.find_all("p")
+
+        content = " ".join(
+            p.get_text(" ", strip=True)
+            for p in paragraphs
+        )
+
+        return content[:5000]
+
+    except Exception:
+        return ""
 
 def scrape_html(source: dict) -> tuple[list, str | None]:
     articles, error = [], None
@@ -301,6 +402,7 @@ def scrape_html(source: dict) -> tuple[list, str | None]:
                 "bank_fixed": bool(source.get("bank")),
                 "published_at": datetime.now(timezone.utc),
             })
+          article["content"] = extract_article_content(full_url)
     except Exception as exc:
         error = str(exc)
     return articles, error
@@ -320,7 +422,38 @@ def scrape_all_sources() -> tuple[list, list]:
         diagnostics.append({"name": source["name"], "raw_count": len(deduped), "error": error})
         time.sleep(0.5)
     return raw, diagnostics
+def compute_impact(article):
 
+    text = (
+        article["title"]
+        + " "
+        + article.get("content","")
+    ).lower()
+
+    score = 0
+
+    if "lance" in text:
+        score += 25
+
+    if "nouveau" in text:
+        score += 15
+
+    if "partenariat" in text:
+        score += 20
+
+    if "tarif" in text:
+        score += 30
+
+    if "gratuit" in text:
+        score += 20
+
+    if "cashback" in text:
+        score += 20
+
+    if "application mobile" in text:
+        score += 15
+
+    return min(score,100)
 
 # --------------------------------------------------------------------------
 # Filtrage : pré-filtre mots-clés → NLP → secours
@@ -388,7 +521,8 @@ def get_articles(threshold: float) -> tuple[list, list, str]:
         else:
             category = classify_fallback(article)
             if category:
-                article["category"] = category
+                article["category"] = classify_article(article)
+                article["impact"] = compute_impact(article)
                 article["nlp_score"] = None
                 article["bank"] = detect_bank(article)
                 result.append(article)
@@ -400,7 +534,41 @@ def get_articles(threshold: float) -> tuple[list, list, str]:
     mode = "NLP (HuggingFace)" if use_nlp else "Mots-clés (sans token HF)"
     return result, diagnostics, mode
 
+st.markdown("## Résumé Exécutif")
 
+top_articles = sorted(
+    articles,
+    key=lambda x: x["impact"],
+    reverse=True
+)[:5]
+
+for art in top_articles:
+
+    st.info(
+        f"{art['bank']} - "
+        f"{art['title']} "
+        f"(Impact {art['impact']}/100)"
+    )
+import pandas as pd
+
+df = pd.DataFrame(articles)
+
+if not df.empty:
+
+    benchmark = (
+        df.groupby("bank")
+        .size()
+        .reset_index(name="Actualités")
+        .sort_values(
+            "Actualités",
+            ascending=False
+        )
+    )
+
+    st.dataframe(
+        benchmark,
+        use_container_width=True
+    )
 # --------------------------------------------------------------------------
 # Interface Streamlit
 # --------------------------------------------------------------------------
