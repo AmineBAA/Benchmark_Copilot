@@ -3,3 +3,8 @@ requests>=2.32
 feedparser>=6.0
 beautifulsoup4>=4.12
 lxml>=5.2
+sentence-transformers>=2.7
+keybert>=0.8
+numpy>=1.26
+
+
