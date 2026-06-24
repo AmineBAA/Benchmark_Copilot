@@ -338,7 +338,7 @@ threshold = st.sidebar.slider(
 )
 st.sidebar.caption(f"Seuil actuel : {threshold:.2f}")
 
-articles, diagnostics = get_articles(threshold)
+articles, diagnostics = get_articles(0.7)
 
 with st.expander("🔧 Diagnostic du scraping"):
     st.caption(f"Version : `{APP_VERSION}`")
